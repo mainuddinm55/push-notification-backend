@@ -12,14 +12,7 @@ app.use(bodyParser.json())
 
 app.use(router)
 
-const server = http.createServer(app)
-const port = process.env.PORT || 3000
-
-// server.listen(port, () => {
-//     console.log(`Server is listening on port : ${port}`)
-// })
-
-exports.notificationApi = functions.https.onRequest(app)
+exports.notification = functions.https.onRequest(app)
 
 exports.pushRemoteConfig = functions.remoteConfig.onUpdate(version => {
     return notificationController.sendUpdateRemoteConfigNotification()

@@ -3,9 +3,10 @@ const notificationRoute = require('./route/notification-routes')
 
 router.use('/notification', notificationRoute)
 
-router.get('/test', (req, res, next) => {
-    res.json({
-        message: "Hello world"
+router.get('/', (req, res, next) => {
+    res.status(200).json({
+        status: "success",
+        message: "Application running succesfully"
     })
 })
 

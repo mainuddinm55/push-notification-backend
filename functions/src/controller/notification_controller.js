@@ -3,7 +3,6 @@ const { google } = require('googleapis')
 const serviceAccount = require('../../service-account.json')
 
 const request = require('request')
-const fs = require('fs')
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -12,16 +11,17 @@ admin.initializeApp({
 
 const scopes = ['https://www.googleapis.com/auth/cloud-platform']
 var clientCredential = require('../../fcmdata_client_credentials.json')
-const tokenPath = "token.json"
 
 var oauth2Client = new google.auth.OAuth2(
     clientCredential.web.client_id,
     clientCredential.web.client_secret,
-    'http://localhost:3000/notification/google/callback'
+    // 'http://localhost:5000/maya-apa-app-push-notification/us-central1/notification/notification/google/callback'
+    'https://us-central1-maya-apa-app-push-notification.cloudfunctions.net/notification/notification/google/callback'
 )
 
 exports.sendNotification = function (req, res, next) {
     const tokens = req.body.fcms
+    const dryRun = Boolean(req.body.dryRun || false)
     console.log(`Type of ${Array.isArray(tokens)}`);
     if (!tokens) {
         res.json({
@@ -50,25 +50,14 @@ exports.sendNotification = function (req, res, next) {
         android: {
             priority: "high",
             ttl: 86400000,
-            notification: {
-                title: requestNotification.title || dataMessage.subject,
-                body:requestNotification.body || dataMessage.message,
-                image:requestNotification.image || dataMessage.image_url,
-                notification_priority: "PRIORITY_MAX",
-                default_sound:true,
-            },
-            fcm_options: {
-
-            }
         },
-        "apns":{
-            headers:{
-                "apns-priority":"10"
+        apns: {
+            headers: {
+                "apns-priority": "10"
             }
         }
     }
-    // admin.messaging().subscribeToTopic(tokens, topicName).then(response => {
-    admin.messaging().sendMulticast(message).then(result => {
+    admin.messaging().sendMulticast(message, dryRun).then(result => {
         console.log(`Send notification success: ${result}`)
         res.json({
             result: result
@@ -79,42 +68,15 @@ exports.sendNotification = function (req, res, next) {
             error: error
         })
     })
-    // }).catch(error => {
-    // console.log(`Subscribe topic failed: ${error}`);
-    // res.json({ error: error })
-    // })
 }
 
 exports.getFcmData = function (req, res, next) {
-    fs.readFile(tokenPath, (error, token) => {
-        if (error) {
-            const authUrl = oauth2Client.generateAuthUrl({
-                access_type: 'online',
-                scope: scopes
-            })
-            console.log('Authorize this app by visiting this url:', authUrl);
-            res.redirect(authUrl)
-        } else {
-            oauth2Client.setCredentials(JSON.parse(token))
-            fetchFcmData().then(result => {
-                res.json({ data: JSON.parse(result) })
-            }).catch(error => {
-                if (error && error.code == 401) {
-                    fs.unlink(tokenPath, (err) => {
-                        if (err) {
-                            res.json({
-                                error: err
-                            })
-                        } else {
-                            res.redirect("fcmdata")
-                        }
-                    })
-                } else {
-                    res.json({ error: error })
-                }
-            })
-        }
+    const authUrl = oauth2Client.generateAuthUrl({
+        access_type: 'online',
+        scope: scopes
     })
+    console.log('Authorize this app by visiting this url:', authUrl);
+    res.redirect(authUrl)
 }
 
 exports.authCallback = function (req, res, next) {
@@ -127,13 +89,6 @@ exports.authCallback = function (req, res, next) {
                 res.json({ error: error })
             } else {
                 oauth2Client.setCredentials(token)
-                fs.writeFile(tokenPath, JSON.stringify(token), (error) => {
-                    if (error) {
-                        console.log(error);
-                    } else {
-                        console.log('Saved');
-                    }
-                })
                 fetchFcmData().then(result => {
                     console.log(`Auth callback Fetch fcm data`);
                     res.json({
@@ -151,7 +106,7 @@ exports.authCallback = function (req, res, next) {
 }
 
 exports.auth = function (req, res, next) {
-    res.send('<a href="/notification/fcmdata">FCM Messaging Data</a>')
+    res.send('<a href="/notification/notification/fcmdata">FCM Messaging Data</a>')
 }
 
 function fetchFcmData() {
@@ -184,12 +139,83 @@ exports.sendUpdateRemoteConfigNotification = function sendRCNotification() {
             priority: "high"
         }
     }
-    // admin.messaging().subscribeToTopic(tokens, topicName).then(response => {
     admin.messaging().send(message).then(result => {
         console.log(`Send notification success: ${result}`)
         return true
     }).catch(error => {
         console.log(`Send notification failed: ${error}`);
         return false
+    })
+}
+
+
+exports.subscribeTopic = function subscribeTopic(req, res, next) {
+    let fcms = req.body.fcms || []
+    let topicName = req.body.topic || "push"
+    if (fcms.length) {
+        admin.messaging().subscribeToTopic(fcms, topicName)
+            .then(result => {
+                res.status(200).json({
+                    data: result
+                })
+            }).catch(error => {
+                res.status(400).json({
+                    error: error
+                })
+            })
+    } else {
+        res.status(400).json({
+            error: "Fcms must at lest one"
+        })
+    }
+}
+
+exports.sendTopicNotification = function sendTopicNotification(req, res, next) {
+    const topic = req.body.topic
+    const dryRun = Boolean(req.body.dryRun || false)
+    console.log(`Topic name : ${topic}`);
+    if (!topic) {
+        res.json({
+            error: "Please provide topic"
+        })
+        return
+    }
+    const requestData = req.body.data
+    const dataMessage = {}
+    Object.keys(requestData).forEach(key => {
+        var value = requestData[key]
+        if (typeof value == 'object') {
+            dataMessage[key] = JSON.stringify(value)
+        } else {
+            dataMessage[key] = value.toString()
+        }
+    })
+    const requestNotification = req.body.notification
+
+    console.log(`Data message: ${dataMessage}`)
+    const message = {
+        notification: requestNotification,
+        data: dataMessage,
+        topic: topic,
+        android: {
+            priority: "high",
+            ttl: 86400000,
+        },
+        apns: {
+            headers: {
+                "apns-priority": "10"
+            }
+        }
+    }
+    admin.messaging().send(message, dryRun).then(result => {
+        console.log(`Send notification success: ${result}`)
+        res.json({
+            result: result
+        })
+    }).catch(error => {
+        console.log(`Send notification failed: ${error}`);
+        res.json({
+            error: error
+        })
     })
 }
