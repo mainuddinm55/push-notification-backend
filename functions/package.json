@@ -20,7 +20,9 @@
     "firebase-functions": "^3.14.1",
     "fs": "^0.0.1-security",
     "googleapis": "^89.0.0",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "dotenv": "^11.0.0",
+    "twilio": "^3.72.0"
   },
   "devDependencies": {
     "firebase-functions-test": "^0.2.0"
