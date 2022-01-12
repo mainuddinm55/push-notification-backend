@@ -3,6 +3,7 @@ const AccessToken = twilio.jwt.AccessToken
 const VideoGrant = AccessToken.VideoGrant
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const accountAuth = process.env.TWILIO_ACCOUNT_AUTH
+const apiKey = process.env.TWILIO_API_KEY
 const apiSecret = process.env.TWILIO_API_SECRET
 
 const client = twilio(accountSid, accountAuth)
@@ -63,7 +64,7 @@ exports.getToken = function (req, res, next) {
         const videoGrant = new VideoGrant({
             room: room,
         })
-        const token = new AccessToken(accountSid, accountAuth, apiSecret, {
+        const token = new AccessToken(accountSid, apiKey, apiSecret, {
             identity: identity
         })
         token.addGrant(videoGrant)
